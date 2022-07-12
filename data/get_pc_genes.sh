@@ -14,24 +14,15 @@ cat ../data/gencode.v40.annotation.pc.gtf | awk 'BEGIN { FS = ";" } ; !seen[$3]+
 wc -l ../data/gencode.v40.annotation.pc.unique.gtf
 
 #get sequences from primary assembly fasta for protein coding genes; flat format
+#WARNING: This is inefficent but it works and I don't know a better way ATM.
 curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/GRCh38.primary_assembly.genome.fa.gz | gunzip -d > ../data/GRCh38.primary_assembly.genome.fa
-bedtools getfasta -fi ../data/GRCh38.primary_assembly.genome.fa -bed ../data/gencode.v40.annotation.pc.unique.gtf -s -name \
--fo ../data/gencode.v40.annotation.pc.unique.fa
+seqkit subseq --gtf ../data/gencode.v40.annotation.pc.unique.gtf ../data/GRCh38.primary_assembly.genome.fa -u 200 -d 500 > ../data/gencode.v40.annotation.pc.unique.fa
 
 #should match above wc call for the .gtf file
 grep -c ">" ../data/gencode.v40.annotation.pc.unique.fa
 
-#trim each sequence to first 500 bases or full sequence if smaller than 500 bases and get 200 bp upstream.
-cat ../data/gencode.v40.annotation.pc.unique.fa | seqkit subseq -u 200 -r 1:500 > ../data/gencode.v40.annotation.pc.unique.trim.fa
+#Get 500bp downstream and 200 bp upstream of TSS
+cat ../data/gencode.v40.annotation.pc.unique.fa | seqkit subseq -r 1:700 > ../data/raw_data.fa
 
 #double check above command worked
-seqkit stats ../data/gencode.v40.annotation.pc.unique.trim.fa
-
-#determine line number of 80th percent sequence
-#split fasta at line 159249 for training (80%) and predicting (20%)
-#rename files
-# SL=$(grep -n ">" ../data/gencode.v38.annotation.pc.unique.fa | sed '15944q;d' | cut -f 1 -d:)
-# csplit -f positive. ../data/gencode.v38.annotation.pc.unique.fa "$SL"
-# mv ../data/positive.00 ../data/positive_pc_train_80percent.fa
-# mv ../data/positive.01 ../data/positive_pc_test_20percent.fa
-
+seqkit stats ../data/raw_data.fa
