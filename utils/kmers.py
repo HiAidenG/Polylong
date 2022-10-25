@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import zscore
 
-class attMat:
+class kMerDF:
     """
     This is a special class designed for working with transformer
     attention scores, specifically with DNA sequences that have
@@ -9,7 +9,7 @@ class attMat:
     kMer class.
 
     === Instance Variables ===
-    @pd.dataframe kmerdf: a numpy dataframe of kMer objects
+    @np.array df: a numpy array of kMer objects
 
     === Representation Invariants ===
     
@@ -20,31 +20,37 @@ class attMat:
     scores.shape == dnadf.shape
     """
 
-    def __init__(self, scores, dnadf):
+    def __init__(self, scores, dnadf, labels):
         scores = zscore(scores)
-        self.kmerdf = self._make_kmerdf(scores, dnadf)
+        self.df = self._make_kmerdf(scores, dnadf, labels)
     
-    def _make_kmerdf(self, scores, dnadf):
+    def _make_kmerdf(self, scores, dnadf, labels):
         """
         Creates a numpy dataframe of kMer objects from the scores and
         dnadf dataframes. The kMer objects are stored in a pandas
         dataframe for easy access and manipulation.
         """
-        # TODO: I have to initialize the object with the kmers class. Might be harder to do in numpy than pandas
         kmerdf = []
         for row_idx, row_val in enumerate(scores):
             row = [] # list of kMer objects
-            for col_idx, col_val in enumerate(row_val):
-                kmer = kMer(row_idx, col_idx, scores[row_idx, col_idx], dnadf[row_idx, col_idx]) # create a kMer object
+            for col_idx, _ in enumerate(row_val):
+                kmer = kMer(row_idx, col_idx, scores[row_idx, col_idx], dnadf[row_idx, col_idx], labels[row_idx]) # create a kMer object
                 row.append(kmer) # add it to the row
             kmerdf.append(row) # add the row to the dataframe
         return np.array(kmerdf)
+        
+    # TODO: make this subcriptable (i.e. attMat[0, 0])
+    
+    # TODO: write a method that will show the head of the dataframe
+    
+    # TODO: write an iterator for the kmerdf
+    
         
     def get_kmer(self, row, col):
         """
         Returns the kMer object at the given row (ID) and column (position).
         """
-        return self.kmerdf[row, col]
+        return self.df[row, col]
 
     def filter_kmers(self, zscore):
         """
@@ -55,7 +61,7 @@ class attMat:
         - float zscore: the z-score threshold
         """
         filtered_kmers = []
-        for row in self.kmerdf:
+        for row in self.df:
             for kmer in row:
                 if kmer.score >= zscore:
                     filtered_kmers.append(kmer)
@@ -69,7 +75,7 @@ class attMat:
         - str seq: the sequence to search for
         """
         kmers = []
-        for row in self.kmerdf:
+        for row in self.df:
             for kmer in row:
                 if kmer.seq == seq:
                     kmers.append(kmer)
@@ -81,9 +87,9 @@ class attMat:
         threshold and each List[kMer] is a contiguous high-scoring sequence.
         """
         return_list = []
-        for i in range(len(self.kmerdf)):
+        for i in range(len(self.df)):
             contiguous_kmers = []
-            row = self.kmerdf[i]
+            row = self.df[i]
             for j in range(1, len(row)-1): #start at index one, end at second to last index (to avoid index out of bounds)
                 kmer = row[j]
                 if kmer.score >= zscore and (row[j+1].score >= zscore or row[j-1].score >= zscore): # if the next kmer is also high scoring
