@@ -43,8 +43,7 @@ class kMerDF:
     
     # TODO: write a method that will show the head of the dataframe
     
-    # TODO: write an iterator for the kmerdf
-    
+    # TODO: write an iterator for the kmerdf    
         
     def get_kmer(self, row, col):
         """
@@ -67,7 +66,9 @@ class kMerDF:
                     filtered_kmers.append(kmer)
         return filtered_kmers
 
-    def get_kmer_instances(self, seq):
+
+    #TODO: probably want to rename this to something more descriptive
+    def search(self, seq):
         """
         Returns a list of kMer objects the match the given sequence
 
@@ -81,6 +82,8 @@ class kMerDF:
                     kmers.append(kmer)
         return kmers
 
+
+    # TODO: this is buggy, it returns a list of empty lists, which I don't want
     def get_contiguous_kmers(self, zscore):
         """
         Returns List[List[kMer]], where kMers satisfy the zscore 
@@ -128,6 +131,27 @@ class kMer:
         self.label = label
 
     def __str__(self):
-        return f"Sequence ID: {self.ID}, Sequence: {self.seq}, Position: {self.pos}, Score: {self.score}"    
+        return f"Sequence ID: {self.ID}, Sequence: {self.seq}, Position: {self.pos}, Score: {self.score}"  
+    
+    
+
+#function for retrieving the unique sequences from a list of kMers
+def get_unique_seqs(kmers):
+    """
+    Returns a list of unique sequences from a list of kMers. 
+    Chooses a representative kMer, the first to appear in the list. 
+    
+    You can search for all kmers matching the representative's sequence
+    using kMerDF.search(<kMer.seq>) 
+    """
+    seqs = []
+    for kmer in kmers:
+        match = False
+        for seq in seqs: 
+            if kmer.seq == seq.seq:
+                match = True
+        if not match:
+            seqs.append(kmer)
+    return seqs
     
     
