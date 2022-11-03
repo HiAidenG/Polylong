@@ -78,22 +78,64 @@ class kMerDF:
         """
         return self.df[:n] 
         
-    def filter_kmers(self, zscore):
+    def filter_kmers(self, zscore=0, seq_freq=0, pos_cutoff=0):
         """
         Filters the k-mer dataframe and returns a list of kMer objects
-        satisfying the z-score threshold. 
+        satisfying the given parameters.
 
         === Preconditions ===
-        - float zscore: the z-score threshold
+        - float zscore: the z-score threshold, default 0
+        - int seq_freq: the minimum frequency of a sequence, default 0
+                        0 < seq_freq < 100
+        - int pos_cutoff: the maximum position of the k-mer, after which subsequent
+                            k-mers are ignored, default 0
+                          0 < pos_cutoff < len(self.df[0])
         """
-        filtered_kmers = []
+        if pos_cutoff > 0:
+            r_df = self.df[: , :pos_cutoff]
+        if zscore > 0:
+            r_df = r_df.filter_by_zscore(zscore)
+        if seq_freq > 0:
+            r_df = r_df.filter_by_seq_freq(seq_freq)
+        return r_df
+
+    def filter_by_zscore(self, zscore):
+        """
+        Mutates a kMerDF object by removing all kMers below the given zscore threshold.
+        """
         for row in self.df:
             for kmer in row:
-                if kmer.score >= zscore:
-                    filtered_kmers.append(kmer)
-        return filtered_kmers
+                if kmer.score < zscore:
+                    row.remove(kmer)
+        return self
 
-    #TODO: probably want to rename this to something more descriptive
+    def filter_by_seq_freq(self, seq_freq_percentile):
+        """
+        Mutates a kMerDF object by removing all kMers below the given sequence frequency threshold.
+
+        === Precondition ===
+        - int seq_freq: the minimum frequency of a sequence, default 0
+                        0 < seq_freq_percentile < 100
+        """
+        for row in self.df:
+            for kmer in row:
+                if self.get_sequence_frequency(kmer.seq) < seq_freq_percentile:
+                    row.remove(kmer)
+        return self
+
+        # TODO: figure out how to get percentiles for sequence frequency
+
+
+    def get_sequence_frequency(self, seq):
+        """
+        Returns the frequency of a given sequence in the kMerDF object.
+        """
+        pass
+       
+        
+
+    
+
     def find_matching_seqs(self, seq):
         """
         Returns a list of kMer objects the match the given sequence
@@ -108,8 +150,8 @@ class kMerDF:
                     kmers.append(kmer)
         return kmers
 
-
     # TODO: this is buggy, it returns a list of empty lists, which I don't want
+    # Probably want to split this up into some smaller methods. 
     def get_contiguous_kmers(self, zscore):
         """
         Returns List[List[kMer]], where kMers satisfy the zscore 
@@ -144,11 +186,11 @@ class kMerDF_iter:
         if self.row >= len(self.kmerdf):
             raise StopIteration
         else:
-            kmer = self.kmerdf.get_kmer(self.row, self.col)
+            kmer = self.kmerdf[self.row][self.col]
             self.col += 1
             if self.col >= len(self.kmerdf[self.row]):
-                self.row += 1
                 self.col = 0
+                self.row += 1
             return kmer
 
 class kMer:
