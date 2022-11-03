@@ -16,6 +16,7 @@ class kMerDF:
     === Preconditions ===
     - scores is a numpy array of attention scores
     - dnadf is a numpy array of DNA sequences
+    - labels is a numpy array of labels
 
     scores.shape == dnadf.shape
     """
@@ -24,6 +25,12 @@ class kMerDF:
         scores = zscore(scores)
         self.df = self._make_kmerdf(scores, dnadf, labels)
     
+    def _build_kmer(self, ID, pos, score, seq, label):
+        """
+        Initializes a kMer object and returns it.
+        """
+        return kMer(ID, pos, score, seq, label)
+
     def _make_kmerdf(self, scores, dnadf, labels):
         """
         Creates a numpy dataframe of kMer objects from the scores and
@@ -32,25 +39,45 @@ class kMerDF:
         """
         kmerdf = []
         for row_idx, row_val in enumerate(scores):
-            row = [] # list of kMer objects
+            row = []
             for col_idx, _ in enumerate(row_val):
-                kmer = kMer(row_idx, col_idx, scores[row_idx, col_idx], dnadf[row_idx, col_idx], labels[row_idx]) # create a kMer object
-                row.append(kmer) # add it to the row
-            kmerdf.append(row) # add the row to the dataframe
+                ID = row_idx
+                pos = col_idx
+                score = scores[row_idx, col_idx]
+                seq = dnadf[row_idx][col_idx]
+                label = labels[row_idx]
+                kmer = self._build_kmer(ID, pos, score, seq, label)
+                row.append(kmer) 
+            kmerdf.append(row)
         return np.array(kmerdf)
-        
-    # TODO: make this subcriptable (i.e. attMat[0, 0])
-    
-    # TODO: write a method that will show the head of the dataframe
-    
-    # TODO: write an iterator for the kmerdf    
-        
-    def get_kmer(self, row, col):
-        """
-        Returns the kMer object at the given row (ID) and column (position).
-        """
-        return self.df[row, col]
 
+    def __len__(self):
+        """
+        Returns the length of the kMerDF object.
+        """
+        return len(self.df)
+
+    def __getitem__(self, key):
+        """
+        Returns the kMer object at the given key.
+        """
+        return self.df[key]
+            
+    def __iter__(self):
+        """
+        Returns an iterator over the kMerDF object.
+        """
+        return kMerDF_iter(self)
+
+    def head(self, n):
+        """
+        Returns the first n rows of the kMerDF object.
+
+        Returns the empty list if n = 0. Returns all rows of the kMerDF
+        if n > len(self.df).
+        """
+        return self.df[:n] 
+        
     def filter_kmers(self, zscore):
         """
         Filters the k-mer dataframe and returns a list of kMer objects
@@ -66,9 +93,8 @@ class kMerDF:
                     filtered_kmers.append(kmer)
         return filtered_kmers
 
-
     #TODO: probably want to rename this to something more descriptive
-    def search(self, seq):
+    def find_matching_seqs(self, seq):
         """
         Returns a list of kMer objects the match the given sequence
 
@@ -105,6 +131,26 @@ class kMerDF:
             return_list.append(contiguous_kmers) 
         return return_list
 
+class kMerDF_iter:
+    """
+    Iterator for kMerDF class.
+    """
+    def __init__(self, kmerdf):
+        self.kmerdf = kmerdf
+        self.row = 0
+        self.col = 0
+        
+    def __next__(self):
+        if self.row >= len(self.kmerdf):
+            raise StopIteration
+        else:
+            kmer = self.kmerdf.get_kmer(self.row, self.col)
+            self.col += 1
+            if self.col >= len(self.kmerdf[self.row]):
+                self.row += 1
+                self.col = 0
+            return kmer
+
 class kMer:
     """
     Designed for working with transformer attention matrices.
@@ -132,8 +178,6 @@ class kMer:
 
     def __str__(self):
         return f"Sequence ID: {self.ID}, Sequence: {self.seq}, Position: {self.pos}, Score: {self.score}"  
-    
-    
 
 #function for retrieving the unique sequences from a list of kMers
 def get_unique_seqs(kmers):
@@ -171,4 +215,20 @@ def kmer2seq(kmers):
     assert len(seq) == len(kmers_list) + len(kmers_list[0]) - 1
     return seq
     
+if __name__ == '__main__':
+    # test code
+    labels = [0, 1, 0]
+    scores = [[0.1, 0.2, 0.3],
+              [0.4, 0.5, 0.6],
+              [0.7, 0.8, 0.9]]
+    dnadf = [["ATCGATCGAT", "ATCGATCGAT", "ATCGATCGAT"],
+             ["ATCGATCGAT", "ATCGATCGAT", "ATCGATCGAT"],
+             ["ATCGATCGAT", "ATCGATCGAT", "ATCGATCGAT"]]
+
+    kmerdf = kMerDF(scores, dnadf, labels)
+    for item in kmerdf:
+        print(item)
+    
+    print(kmerdf.head(1))
+
     
