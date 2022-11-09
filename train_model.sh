@@ -21,7 +21,7 @@ python run_finetune.py \
     --task_name dnaprom \
     --do_train \
     --do_eval \
-    --data_dir ../../data/507ds/ \
+    --data_dir ../../data/ \
     --max_seq_length 512 \
     --per_gpu_eval_batch_size=$batch_size  \
     --per_gpu_train_batch_size=$batch_size   \
@@ -50,7 +50,7 @@ python run_finetune.py \
     --model_name_or_path ../../utils/6-new-12w-0 \
     --task_name dnaprom \
     --do_predict \
-    --data_dir ../../data/507ds/  \
+    --data_dir ../../data/ \
     --max_seq_length 512 \
     --per_gpu_pred_batch_size=64   \
     --output_dir ../../model_output \
