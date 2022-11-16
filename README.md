@@ -22,7 +22,7 @@ cd examples
 python3 -m pip install -r requirements.txt
 ```
 
-Install additional python packages for the notebook:
+Install additional python packages for the notebook: \
 Alternatively, you can import everything to google colab and install the packages there.
 ```
 conda install pandas scipy biopython seaborn matplotlib
