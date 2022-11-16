@@ -22,9 +22,10 @@ cd examples
 python3 -m pip install -r requirements.txt
 ```
 
-You'll also need the seqkit and liftOver scripts. For those you have to add them to your PATH. \
+You'll also need the seqkit, liftOver, and gdown scripts. For those you have to add them to your PATH. \
 liftOver is available here: http://hgdownload.cse.ucsc.edu/admin/exe/ \
 seqkit ... ?
+gdown
 
 ## Dependencies for interpreting model results
 
