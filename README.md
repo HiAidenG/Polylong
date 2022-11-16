@@ -22,14 +22,14 @@ cd examples
 python3 -m pip install -r requirements.txt
 ```
 
+You'll also need the seqkit and liftOver scripts. For those you have to add them to your PATH. \
+liftOver is available here: http://hgdownload.cse.ucsc.edu/admin/exe/ \
+seqkit ... ?
+
 Install additional python packages for the notebook: \
 Alternatively, you can import everything to google colab and install the packages there.
 ```
 conda install pandas scipy biopython seaborn matplotlib
 ```
-
-You'll also need the seqkit and liftOver scripts. For those you have to add them to your PATH. \
-liftOver is available here: http://hgdownload.cse.ucsc.edu/admin/exe/ \
-seqkit ... ?
 
 # WIP
