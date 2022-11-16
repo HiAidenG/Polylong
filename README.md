@@ -3,7 +3,7 @@ Sample data, utilities, and jupyter notebooks for the PolyLong project.
 
 More info below. 
 
-# Setting up your environment
+# If you want to train the model from scratch, you will need to setup your environment. 
 
 Create a new conda virtual environment:
 ```
@@ -22,7 +22,8 @@ cd examples
 python3 -m pip install -r requirements.txt
 ```
 
-Install additional python packages:
+Install additional python packages for the notebook:
+Alternatively, you can import everything to google colab and install the packages there.
 ```
 conda install pandas scipy biopython seaborn matplotlib
 ```
