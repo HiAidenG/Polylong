@@ -2,6 +2,8 @@
 
 import kmers
 from kmers import kMer, kMerDF
+import pandas as pd
+import numpy as np
 
 # Test kMer class
 def test_kmer():
@@ -12,7 +14,6 @@ def test_kmer():
     assert kmer.pos == 1
     assert kmer.label == 1
 
-# Test kMerDF class
-def test_kmerdf():
-    
+#Load attention scores, convert to numpy array
+
     

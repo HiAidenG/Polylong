@@ -43,7 +43,7 @@ class kMerDF:
             for col_idx, _ in enumerate(row_val):
                 ID = row_idx
                 pos = col_idx
-                score = scores[row_idx, col_idx]
+                score = round(scores[row_idx][col_idx], 3)
                 seq = dnadf[row_idx][col_idx]
                 label = labels[row_idx]
                 kmer = self._build_kmer(ID, pos, score, seq, label)
