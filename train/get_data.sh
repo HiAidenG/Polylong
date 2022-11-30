@@ -2,22 +2,23 @@
 set -euxo pipefail
 
 #Download reference genome
-mkdir data && cd ./data
-curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/gencode.v40.annotation.gtf.gz | gunzip -d > gencode.v40.annotation.gtf
+cd data
+# mkdir data && cd ./data
+# curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/gencode.v40.annotation.gtf.gz | gunzip -d > gencode.v40.annotation.gtf
 
-#take all entries that are protein coding and do not have a transcript ID
-#these should be the coordinates for all protein coding genes
-grep 'gene_type "protein_coding"' gencode.v40.annotation.gtf | grep -v 'transcript_id' > gencode.v40.annotation.pc.gtf
+# #take all entries that are protein coding and do not have a transcript ID
+# #these should be the coordinates for all protein coding genes
+# grep 'gene_type "protein_coding"' gencode.v40.annotation.gtf | grep -v 'transcript_id' > gencode.v40.annotation.pc.gtf
 
-#remove any potential duplicate gene names
-cat gencode.v40.annotation.pc.gtf | awk 'BEGIN { FS = ";" } ; !seen[$3]++' > gencode.v40.annotation.pc.unique.gtf
+# #remove any potential duplicate gene names
+# cat gencode.v40.annotation.pc.gtf | awk 'BEGIN { FS = ";" } ; !seen[$3]++' > gencode.v40.annotation.pc.unique.gtf
 
-wc -l gencode.v40.annotation.pc.unique.gtf
+# wc -l gencode.v40.annotation.pc.unique.gtf
 
-#get sequences from primary assembly fasta for protein coding genes; flat format
-#TODO: This is inefficent but it works and I don't know a better way ATM.
+# #get sequences from primary assembly fasta for protein coding genes; flat format
+# #TODO: This is inefficent but it works and I don't know a better way ATM.
 
-curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/GRCh38.primary_assembly.genome.fa.gz | gunzip -d > GRCh38.primary_assembly.genome.fa
+# curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/GRCh38.primary_assembly.genome.fa.gz | gunzip -d > GRCh38.primary_assembly.genome.fa
 seqkit subseq --gtf gencode.v40.annotation.pc.unique.gtf GRCh38.primary_assembly.genome.fa -u 1024 -d 1024 > gencode.v40.annotation.pc.unique.fa
 
 #should match above wc call for the .gtf file
