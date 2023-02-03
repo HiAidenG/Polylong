@@ -2,31 +2,34 @@
 set -euxo pipefail
 
 #Download reference genome
-mkdir data && cd ./data
-curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/gencode.v40.annotation.gtf.gz | gunzip -d > gencode.v40.annotation.gtf
+cd data
+# mkdir data && cd ./data
+# curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/gencode.v40.annotation.gtf.gz | gunzip -d > gencode.v40.annotation.gtf
 
 #Download primary assembly fasta
-curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/GRCh38.primary_assembly.genome.fa.gz | gunzip -d > GRCh38.primary_assembly.genome.fa
+# curl https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_40/GRCh38.primary_assembly.genome.fa.gz | gunzip -d > GRCh38.primary_assembly.genome.fa
 
 #take all entries that are protein coding and do not have a transcript ID
 #these should be the coordinates for all protein coding genes
-grep 'gene_type "protein_coding"' gencode.v40.annotation.gtf | grep -v 'transcript_id' | awk 'BEGIN { FS = ";" } ; !seen[$3]++' > gencode.v40.annotation.pc.gtf
+grep 'gene_type "protein_coding"' gencode.v40.annotation.gtf | grep -v 'transcript_id' > gencode.v40.annotation.pc.gtf
 
-#check that the above command worked
-wc -l gencode.v40.annotation.pc.gtf
+cat gencode.v40.annotation.pc.gtf | awk 'BEGIN { FS = ";" } ; !seen[$3]++' > gencode.v40.annotation.pc.unique.gtf
 
+wc -l gencode.v40.annotation.pc.unique.gtf
+
+#get sequences from primary assembly fasta for protein coding genes; flat format
 #TODO: This is inefficent but it works and I don't know a better way ATM.
-seqkit subseq --gtf gencode.v40.annotation.pc.gtf GRCh38.primary_assembly.genome.fa -u 512 -d 512 > pos_TSSflanking_1024.fa
+
+seqkit subseq --gtf gencode.v40.annotation.pc.unique.gtf GRCh38.primary_assembly.genome.fa -u 1024 -d 1024 > gencode.v40.annotation.pc.unique.fa
 
 #should match above wc call for the .gtf file
-grep -c ">" pos_TSSflanking_1024.fa
+grep -c ">" gencode.v40.annotation.pc.unique.fa
+
+cat gencode.v40.annotation.pc.unique.fa | seqkit subseq -r 512:1535 > pos_TSSflanking_1024.fa
 
 #double check above command worked
 seqkit stats pos_TSSflanking_1024.fa
 
-# clean up:
-rm -f gencode.v40.annotation.pc.gtf
-rm -f gencode.v40.annotation.gtf
 
 #Now for the unstable sequences; get the bed files from the Core et al. paper, these are the coordinates for unstable transcripts (UU files)
 #link to Core et al. paper https://www.nature.com/articles/ng.3142#MOESM77
@@ -60,35 +63,20 @@ cat ./*ext_hg38.bed > UU_all_merged.bed
 bedtools getfasta -fi GRCh38.primary_assembly.genome.fa -bed UU_all_merged.bed -s -name -fo UU_all_merged.fa
 
 #Again, change this to get desired subsequence for negatives. 0 is 1024 bp upstream of TSS, 2048 is 1024 bp downstream of TSS.
-cat UU_all_merged.fa | seqkit subseq -r 512:1024 > neg_TSSflanking_1024.fa
+cat UU_all_merged.fa | seqkit subseq -r 512:1535 > neg_TSSflanking_1024.fa
 
 seqkit stats neg_TSSflanking_1024.fa
 
-#clean up, TOOD: should probably just pipe everything instead of having to do this
-rm -f UU_all_merged.bed
+#clean up, TODO: should probably just pipe everything instead of having to do this
+rm -f *.bed
+rm -f *.gz
+rm -f *.zip
+rm -f *.sizes
 rm -f UU_all_merged.fa
-rm -f UU_gm_minus_ext.bed
-rm -f UU_gm_minus_ext_hg38.bed
-rm -f UU_gm_minus_ext_um.bed
-rm -f UU_gm_plus_ext.bed
-rm -f UU_gm_plus_ext_hg38.bed
-rm -f UU_gm_plus_ext_um.bed
-rm -f UU_k_minus_ext.bed
-rm -f UU_k_minus_ext_hg38.bed
-rm -f UU_k_minus_ext_um.bed
-rm -f UU_k_plus_ext.bed
-rm -f UU_k_plus_ext_hg38.bed
-rm -f UU_k_plus_ext_um.bed
-rm -f tss_UU_gm12878_minus.bed
-rm -f tss_UU_gm12878_plus.bed
-rm -f tss_UU_k562_minus.bed
-rm -f tss_UU_k562_plus.bed
-rm -f hg19.chrom.sizes
-rm -f hg19ToHg38.over.chain.gz
 
 
 echo "Running python script to preprocess data..."
 
-# python ../../utils/preprocessdata.py
+python ../../utils/preprocessdata.py -p pos_TSSflanking_1024.fa -n neg_TSSflanking_1024.fa
 
 echo "Done!"

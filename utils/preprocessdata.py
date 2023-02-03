@@ -1,12 +1,13 @@
 from Bio import SeqIO
 import random
-import argparse 
+import argparse
+import os
 
 #Define command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--pos_file', type=str, help='Path to positive sequences')
 parser.add_argument('-n', '--neg_file', type=str, help='Path to negative sequences')
-parser.add_argument('-t', '--type', type=bool, default=False, help='Whether the sequences should be processed into windows for training multiple models, default is False')
+parser.add_argument('-t', '--type', type=bool, default=False, help='Whether the sequences should be processed into windows for training multiple models, default is False. NOTE: This assumes the sequences are 1024 bp long, behavior is undefined if they are not. This is also a bit of a file dump, consider redirecting output.')
 args = parser.parse_args()
 
 POS_FILE = args.pos_file
@@ -26,8 +27,6 @@ It will clean the sequences by removing any mitochondrial genes and ensuring all
 
 It will then split the sequences into training and testing sets, using chromosomes 1-14 for training, 15-16 for validation, and the rest for testing.
 Sequences will be converted into kmers and written to their respective tsv files. The script outputs test.tsv, train.tsv, and dev.tsv to the data directory.
-
-TODO: type flag to split sequences into windows for training multiple models
 """
 
 #Update: 1/31/23: I'm trying to reduce I/O operations, so I'm changing the functions to do everything in memory
@@ -48,6 +47,7 @@ def clean_seqs(records: list) -> dict:
                 sequences[record.id] = sequence
         elif len(record.seq) != length:
             print('Warning: sequence length mismatch')
+            print("Expected length: " + str(length), "Actual length: " + str(len(record.seq)))
     return sequences
 
 def seq2kmer(seq, k) -> str:
@@ -101,18 +101,27 @@ def merge_seqs(positives: dict, negatives: dict) -> dict:
         merged[ID] = (seq, 0)
     return merged
 
+def extract_window(sequences: dict, window_start: int, window_end: int) -> dict:
+    """
+    Returns a subset of the given dictionary, containing the nucleotides between the window_start and window_end indices.
+    """
+    subset = {}
+    for ID, seq in sequences.items():
+        subset[ID] = (seq[0][window_start:window_end], seq[1])
+    return subset
+
 def kmerize_seqs(sequences: dict) -> None:
     """
     Mutates the given dictionary by converting the sequences to kmers
     """
     for ID, seq in sequences.items():
-        label = seq[1]
-        seq = seq2kmer(seq[0], 6)
-        sequences[ID] = (seq, label)
-    
+        sequences[ID] = (seq2kmer(seq[0], 6), seq[1])
+              
+
 def shuffle_seqs(sequences: dict) -> None:
     """
-    Mutates the given dictionary by shuffling the order of the sequences
+    Shuffle the positions of the sequences in the dictionary, such that the classes aren't written in order
+    Returns None because the dictionary is mutated
     """
     keys = list(sequences.keys())
     random.shuffle(keys)
@@ -120,6 +129,7 @@ def shuffle_seqs(sequences: dict) -> None:
     for key in keys:
         shuffled[key] = sequences[key]
     sequences = shuffled
+    
 
 def split_seqs(sequences: dict) -> tuple:
     """
@@ -149,132 +159,145 @@ def write_seqs(sequences: dict, write_dir: str):
     At this point, I don't care about sequence IDs, so I'm just writing the sequence and the label
     """
     with open(write_dir, 'w') as f:
+        f.write('sequence\tlabel\n')
         for ID, seq in sequences.items():
             f.write(seq[0] + '\t' + str(seq[1]) + '\n')
 
-def main():
+def single_window() -> tuple:
     positive_records = list(SeqIO.parse(POS_FILE, 'fasta'))
     negative_records = list(SeqIO.parse(NEG_FILE, 'fasta'))
-
 
     #Clean sequences
     positives = clean_seqs(positive_records)
     negatives = clean_seqs(negative_records)
 
     #Reformat negative sequences
-    # negatives = reformat_seqs(negatives)
+    #negatives = reformat_seqs(negatives)
 
     #Merge positive and negative sequences
     merged = merge_seqs(positives, negatives)
 
-    print(merged)
-
     #kmerize sequences
-    merged = kmerize_seqs(merged)
+    kmerize_seqs(merged)
 
-    print(merged)
-
+    #Shuffle sequences
+    shuffle_seqs(merged)
 
     #Split sequences into training, validation, and testing sets
-    # train, dev, test = split_seqs(merged)
+    train, dev, test = split_seqs(merged)
+    
+    return train, dev, test
+
+def tiling_pipeline(window_start: int, window_end: int) -> tuple:
+    # There's a lot of duplicate code here, but I think it makes it more explicit what's going on
+    positive_records = list(SeqIO.parse(POS_FILE, 'fasta'))
+    negative_records = list(SeqIO.parse(NEG_FILE, 'fasta'))
+
+    #Clean sequences
+    positives = clean_seqs(positive_records)
+    negatives = clean_seqs(negative_records)
+
+    #Reformat negative sequences
+    negatives = reformat_seqs(negatives)
+
+    #Extract window
+    positives = extract_window(positives, window_start, window_end)
+    negatives = extract_window(negatives, window_start, window_end)
+
+    #Merge positive and negative sequences
+    merged = merge_seqs(positives, negatives)
+
+    #kmerize sequences
+    kmerize_seqs(merged)
+
+    #Shuffle sequences
+    shuffle_seqs(merged)
+
+    #Split sequences into training, validation, and testing sets
+    train, dev, test = split_seqs(merged)
+    
+    return train, dev, test
 
 
-    #Write sequences to tsv files
-    # write_seqs(train, 'train.tsv')
-    # write_seqs(dev, 'dev.tsv')
-    # write_seqs(test, 'test.tsv')
+def tiled_window():
+    # Again, lots of duplicate code here... this one I could probably refactor a bit
+    # One full length sequence of 1024 bp:
+    # 0-1024
+    (train, dev, test) = single_window()
+    os.mkdir('0-1024')
+    write_seqs(train, '0-1024/train.tsv')
+    write_seqs(dev, '0-1024/dev.tsv')
+    write_seqs(test, '0-1024/test.tsv')
 
+    # Three overlapping windows of 512 bp:
+    # 0-512, 256-768, 512-1024
+    (train, dev, test) = tiling_pipeline(0, 512)
+    os.mkdir('0-512')
+    write_seqs(train, '0-512/train.tsv')
+    write_seqs(dev, '0-512/dev.tsv')
+    write_seqs(test, '0-512/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(256, 768)
+    os.mkdir('256-768')
+    write_seqs(train, '256-768/train.tsv')
+    write_seqs(dev, '256-768/dev.tsv')
+    write_seqs(test, '256-768/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(512, 1024)
+    os.mkdir('512-1024')
+    write_seqs(train, '512-1024/train.tsv')
+    write_seqs(dev, '512-1024/dev.tsv')
+    write_seqs(test, '512-1024/test.tsv')
+
+    # Seven overlapping windows of 256 bp:
+    # 0-256, 128-384, 256-512, 384-640, 512-768, 640-896, 768-1024
+    (train, dev, test) = tiling_pipeline(0, 256)
+    os.mkdir('0-256')
+    write_seqs(train, '0-256/train.tsv')
+    write_seqs(dev, '0-256/dev.tsv')
+    write_seqs(test, '0-256/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(128, 384)
+    os.mkdir('128-384')
+    write_seqs(train, '128-384/train.tsv')
+    write_seqs(dev, '128-384/dev.tsv')
+    write_seqs(test, '128-384/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(256, 512)
+    os.mkdir('256-512')
+    write_seqs(train, '256-512/train.tsv')
+    write_seqs(dev, '256-512/dev.tsv')
+    write_seqs(test, '256-512/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(384, 640)
+    os.mkdir('384-640')
+    write_seqs(train, '384-640/train.tsv')
+    write_seqs(dev, '384-640/dev.tsv')
+    write_seqs(test, '384-640/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(512, 768)
+    os.mkdir('512-768')
+    write_seqs(train, '512-768/train.tsv')
+    write_seqs(dev, '512-768/dev.tsv')
+    write_seqs(test, '512-768/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(640, 896)
+    os.mkdir('640-896')
+    write_seqs(train, '640-896/train.tsv')
+    write_seqs(dev, '640-896/dev.tsv')
+    write_seqs(test, '640-896/test.tsv')
+
+    (train, dev, test) = tiling_pipeline(768, 1024)
+    os.mkdir('768-1024')
+    write_seqs(train, '768-1024/train.tsv')
+    write_seqs(dev, '768-1024/dev.tsv')
+    write_seqs(test, '768-1024/test.tsv')
 
 if __name__ == '__main__':
-    main()
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# #additional function for reformatting sequences
-# def reformat_seqs(fasta):
-#     with open('neg_reformat.fa', 'w') as f:
-#         for record in SeqIO.parse(fasta, "fasta"):
-#             temp = record.id.split(':')
-#             record.id = str(temp[2]) + '_' + str(temp[3])
-#             f.write(">" + record.id + "\n" + str(record.seq) + "\n")
-
-
-
-# def get_kmers(pos_fa, neg_fa, to_write):
-#     #Read in fasta file
-#     positives = []
-#     negatives = []
-#     for seq_record in SeqIO.parse(pos_fa, 'fasta'):
-#         if len(seq_record) == SEQ_LENGTH:
-#             seq = str(seq_record.seq)
-#             positives.append(seq)
-
-#     for seq_record in SeqIO.parse(neg_fa, 'fasta'):
-#         if len(seq_record) == SEQ_LENGTH:
-#             seq = str(seq_record.seq)
-#             negatives.append(seq)
-
-#     with open(to_write, 'w') as f:
-#         for record in positives:
-#             record = seq2kmer(record, 6)
-#             f.write("%s\t%s\n" % (record,'1'))
-#         for record in negatives:
-#             record = seq2kmer(record, 6)
-#             f.write("%s\t%s\n" % (record,'0'))
-
-#     # Shuffle the sequences
-#     with open(to_write, 'r') as f:
-#         lines = f.readlines()
-#         random.shuffle(lines)
-#     with open(to_write, 'w') as f2:
-#         f2.write("%s\t%s\n" % ('sequence','label'))
-#         f2.writelines(lines)
-    
-
-# if __name__ == "__main__":
-#     import pandas as pd
-#     clean_seqs(POS_FILE, SEQ_LENGTH)
-#     split_seqs('pos_clean_seqs.fa')
-
-#     clean_seqs(NEG_FILE, SEQ_LENGTH)
-#     #The UU sequences have to be reformatted to match the format of the positive sequences.
-#     reformat_seqs('neg_clean_seqs.fa')
-#     split_seqs('neg_reformat.fa')
-
-#     get_kmers('pos_training_seqs.fa', 'neg_training_seqs.fa', 'train.tsv')
-
-#     get_kmers('pos_testing_seqs.fa', 'neg_testing_seqs.fa', 'test.tsv')
-
-#     df = pd.read_csv('test.tsv', sep='\t')
-#     dev_set = df[-1000:]
-#     df = df[:-1000]
-#     df.to_csv('test.tsv', sep='\t', index=False)
-#     dev_set.to_csv('dev.tsv', sep='\t', index=False)
-
-#     print("Done!")
+    if args.type == False:
+        (train, dev, test) = single_window()
+        write_seqs(train, 'train.tsv')
+        write_seqs(dev, 'dev.tsv')
+        write_seqs(test, 'test.tsv')
+    else:
+        tiled_window()
